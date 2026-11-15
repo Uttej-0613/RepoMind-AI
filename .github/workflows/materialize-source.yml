@@ -1,0 +1,50 @@
+name: Materialize RepoMind release
+on:
+  push:
+    paths:
+      - '.github/workflows/materialize-source.yml'
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Verify and extract release source
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import io
+          from pathlib import Path
+          import zipfile
+
+          payload = Path('.github/repomind-payload.txt')
+          raw = base64.b64decode(payload.read_text(encoding='utf-8'), validate=True)
+          actual = hashlib.sha256(raw).hexdigest()
+          expected = '984ab1ef54c8affdcbe5f146b90b6e97bb64347d121f6388456970bfa3dab4b5'
+          assert actual == expected, 'Source bundle integrity verification failed'
+          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+              members = archive.infolist()
+              assert len(members) == 29, 'Unexpected source bundle manifest'
+              for member in members:
+                  target = Path(member.filename)
+                  assert not target.is_absolute() and '..' not in target.parts
+                  assert member.file_size <= 100_000
+                  assert not member.is_dir()
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(archive.read(member))
+          payload.unlink()
+          print('Verified and extracted', len(members), 'release files')
+          PY
+      - name: Commit published source files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: complete RepoMind AI v2 full-stack application"
+          git push origin HEAD:main

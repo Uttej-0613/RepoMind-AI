@@ -1,0 +1,9 @@
+.git
+.venv
+.env
+.pytest_cache
+.repomind-data
+__pycache__
+*.pyc
+frontend/node_modules
+frontend/dist

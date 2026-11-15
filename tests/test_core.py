@@ -33,10 +33,24 @@ def test_skip_symlink_and_hidden_files(tmp_path: Path):
     (tmp_path / '.venv' / 'hidden.py').write_text('def invisible(): pass')
     (tmp_path / 'valid.py').write_text('def visible(): return 1')
     (tmp_path / 'bad.py').write_text('def invalid(:')
-    (tmp_path / 'link.py').symlink_to(tmp_path / 'valid.py')
     index = Index(tmp_path)
     assert [symbol.qualified_name for symbol in index.symbols] == ['visible']
     assert len(index.parse_errors) == 1
+
+
+def test_symlink_is_not_indexed(tmp_path: Path):
+    """Check symlink exclusion when the OS permits creating symlinks."""
+    target = tmp_path / 'valid.py'
+    target.write_text('def visible(): return 1')
+    link = tmp_path / 'link.py'
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        if getattr(exc, 'winerror', None) == 1314:
+            pytest.skip('Windows account lacks symbolic link creation privilege')
+        raise
+    index = Index(tmp_path)
+    assert [symbol.qualified_name for symbol in index.symbols] == ['visible']
 
 
 def test_limits_and_no_matches(tmp_path: Path):
